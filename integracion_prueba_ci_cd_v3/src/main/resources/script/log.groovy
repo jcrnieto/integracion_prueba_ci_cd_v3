@@ -16,7 +16,7 @@ def Message processData(Message message) {
  
     def messageLog = messageLogFactory.getMessageLog(message);
     if(messageLog != null){
-        messageLog.addAttachmentAsString("Log Response Soap",   "\n Properties \n ----------   \n" + propertiesAsString +
+        messageLog.addAttachmentAsString("Log Response xml",   "\n Properties \n ----------   \n" + propertiesAsString +
                                                             "\n Headers \n ----------   \n" + headersAsString +
                                                             "\n Body \n ----------  \n\n" + body,
                                                             "text/xml");
