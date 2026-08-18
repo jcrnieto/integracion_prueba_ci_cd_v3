@@ -1,0 +1,78 @@
+name: Prepare CPI PROD Artifact
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  prepare-prod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout prod
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+          token: ${{ secrets.CPI_STRUCTURE_PAT }}
+          fetch-depth: 0
+
+      - name: Prepare PROD artifact
+        shell: bash
+        run: |
+          set -e
+
+          OLD_ID="integracion_prueba_ci_cd_v3"
+          NEW_ID="integracion_prueba_ci_cd_v3_PRD"
+
+          echo "Preparando artefacto PRD..."
+          echo "OLD_ID=$OLD_ID"
+          echo "NEW_ID=$NEW_ID"
+
+          if [ ! -f "META-INF/MANIFEST.MF" ]; then
+            echo "ERROR: No existe META-INF/MANIFEST.MF"
+            exit 1
+          fi
+
+          TMP_DIR="$(mktemp -d)"
+          cp -a . "$TMP_DIR/artifact"
+
+          cd "$TMP_DIR/artifact"
+
+          # Cambiar referencias al ID dentro de los archivos de texto
+          grep -rl "$OLD_ID" . \
+            --exclude-dir=.git \
+            --exclude-dir=.github \
+            | while read -r file; do
+                sed -i "s/${OLD_ID}/${NEW_ID}/g" "$file"
+              done
+
+          # Renombrar archivos cuyo nombre contiene el ID anterior
+          find . -depth -name "*${OLD_ID}*" | while read -r path; do
+            newpath="$(echo "$path" | sed "s/${OLD_ID}/${NEW_ID}/g")"
+            mv "$path" "$newpath"
+          done
+
+          # Validaciones
+          if ! grep -q "$NEW_ID" META-INF/MANIFEST.MF; then
+            echo "ERROR: MANIFEST.MF no contiene el nuevo ID"
+            exit 1
+          fi
+
+          find . -name ".DS_Store" -delete
+
+          git config user.name "CPI CI/CD Bot"
+          git config user.email "cpi-cicd-bot@users.noreply.github.com"
+
+          git checkout --orphan prod-ready-temp
+
+          git rm -rf . || true
+
+          cp -a "$TMP_DIR/artifact"/. .
+
+          rm -rf .git
+
+          git add -A
+          git commit -m "Prepare CPI PRD artifact"
+
+          git push origin HEAD:prod-ready --force
