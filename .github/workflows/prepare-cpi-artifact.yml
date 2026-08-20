@@ -27,7 +27,7 @@ jobs:
           echo "Verificando artefacto CPI..."
 
           if [ ! -d "$FLOW_DIR" ]; then
-            echo "No existe la carpeta $FLOW_DIR"
+            echo "ERROR: No existe la carpeta $FLOW_DIR"
             exit 1
           fi
 
@@ -36,23 +36,26 @@ jobs:
           TMP_DIR="$(mktemp -d)"
           cp -a "$FLOW_DIR"/. "$TMP_DIR"/
 
-          echo "Creando rama deploy limpia..."
+          find "$TMP_DIR" -name ".DS_Store" -delete
 
-          git checkout --orphan deploy-temp
+          echo "Cambiando a la rama deploy existente..."
 
-          # Vaciar completamente la nueva rama
+          git fetch origin deploy
+          git checkout deploy
+          git reset --hard origin/deploy
+
+          echo "Limpiando contenido anterior de deploy..."
+
           git rm -rf . || true
+          git clean -fdx
 
-          # Copiar solamente el contenido real del iFlow
+          echo "Copiando nueva versión del iFlow..."
+
           cp -a "$TMP_DIR"/. .
-
-          # Limpiar archivos no deseados
-          find . -name ".DS_Store" -delete
 
           echo "Contenido final:"
           find . -maxdepth 4 -type f | sort
 
-          # Validación importante
           if [ ! -f "META-INF/MANIFEST.MF" ]; then
             echo "ERROR: No existe META-INF/MANIFEST.MF"
             exit 1
@@ -62,6 +65,12 @@ jobs:
           git config user.email "cpi-cicd-bot@users.noreply.github.com"
 
           git add -A
+
+          if git diff --cached --quiet; then
+            echo "No hay cambios para actualizar en deploy."
+            exit 0
+          fi
+
           git commit -m "Prepare clean CPI artifact for deployment"
 
-          git push origin HEAD:deploy --force
+          git push origin deploy
